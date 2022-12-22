@@ -10,6 +10,7 @@ def config():
                         default='../data_new/pcd001clean.bin',
                         help='The data input path for visualizaiton.')
     return parser.parse_args()
+cfg = config()
 
 
 def viz_mayavi(points,vals="distance"):
@@ -29,7 +30,7 @@ def viz_mayavi(points,vals="distance"):
     else:
         col=d
 
-    fig=mayavi.mlab.figure(bgcolor=(0,0,0),size=(780,540))
+    fig=mayavi.mlab.figure(cfg.input.split('\\')[-1], bgcolor=(0,0,0),size=(780,540))
     mayavi.mlab.points3d(x,y,z,
                          col,
                          mode="point",
@@ -41,7 +42,6 @@ def viz_mayavi(points,vals="distance"):
     
 
 if __name__=="__main__":
-    cfg = config()
     
     mypointcloud = np.fromfile(cfg.input,dtype=np.float32,count=-1).reshape([-1,4])
     mypointcloud = torch.from_numpy(mypointcloud)
