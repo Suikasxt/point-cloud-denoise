@@ -54,6 +54,7 @@ def solve(x, k, lam):
     return x_hat
 
 def denoise(data):
+    res = np.copy(data)
     for i in range(5):
         point_set = faiss.IndexFlatL2(3)
         position = data[:, :3]
@@ -78,8 +79,8 @@ def denoise(data):
                     #res[index, 3] = np.mean(data[I[1:]][:, 3])
         data = res
     
-    b=-1.9
-    res[index, 3]=res[index, 3]*np.exp(np.power(cfg.R,b)*np.linalg.norm(res[index, :3]))
+    b=-1.4
+    res[:,3]=res[:,3]*np.exp(np.power(cfg.R,b)*np.linalg.norm(res[:,:3], axis=-1))
     res[:,3]=res[:,3]/np.max(res[:,3])
     
     for i in range(3):
