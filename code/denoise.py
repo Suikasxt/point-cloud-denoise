@@ -27,6 +27,32 @@ def config():
     return cfg
 cfg = config()
 
+def solve(x, k, lam):
+    index = faiss.IndexFlatL2(3)
+    pc_cor=np.copy(x[:,:3],order='C')
+    index.add(pc_cor)
+    pos = np.copy(x[:,:3])
+    D_list, I_list = index.search(np.array(pos), k+1)
+    x_hat = np.copy(x)
+    for index in range(x.shape[0]):
+        D = D_list[index]
+        I = I_list[index]
+        
+        I = I[D<0.1]
+        if len(I) <= 4:
+            continue
+        
+        R = np.linalg.norm(pos[I], axis=-1)
+        ref_list = x[I][:, 3]
+        
+        avg=(1-lam)*R[0] + lam*np.mean(R[1:])
+        ref=(1-lam)*ref_list[0] + lam*np.mean(ref_list[1:])
+        
+        x_hat[index, :3] *= avg / (np.linalg.norm(x_hat[index, :3])+EPS)
+        x_hat[index, 3] = ref
+
+    return x_hat
+
 def denoise(data):
     for i in range(5):
         point_set = faiss.IndexFlatL2(3)
@@ -45,9 +71,16 @@ def denoise(data):
             delta = center - R[0]
             inner_delta = np.mean(np.abs(R[1:] - center))
             if 2*inner_delta < delta:
-                res[index] *= center / R[0]
+                if inner_delta > 1:
+                    res[index, :] = 0
+                else:
+                    res[index, :3] *= center / R[0]
+                    res[index, 3] = np.mean(data[I[1:]][:, 3])
         data = res
-        
+    
+    for i in range(3):
+        res = solve(res, 7, 0.3)
+    
     L_index = 0
     while L_index < res.shape[0]:
         if np.linalg.norm(res[L_index]) < EPS:
