@@ -49,7 +49,7 @@ def solve(x, k, lam):
         ref=(1-lam)*ref_list[0] + lam*np.mean(ref_list[1:])
         
         x_hat[index, :3] *= avg / (np.linalg.norm(x_hat[index, :3])+EPS)
-        x_hat[index, 3] = ref
+        #x_hat[index, 3] = ref
 
     return x_hat
 
@@ -75,12 +75,17 @@ def denoise(data):
                     res[index, :] = 0
                 else:
                     res[index, :3] *= center / R[0]
-                    res[index, 3] = np.mean(data[I[1:]][:, 3])
+                    #res[index, 3] = np.mean(data[I[1:]][:, 3])
         data = res
+    
+    b=-1.9
+    res[index, 3]=res[index, 3]*np.exp(np.power(cfg.R,b)*np.linalg.norm(res[index, :3]))
+    res[:,3]=res[:,3]/np.max(res[:,3])
     
     for i in range(3):
         res = solve(res, 7, 0.3)
-    
+        
+
     L_index = 0
     while L_index < res.shape[0]:
         if np.linalg.norm(res[L_index]) < EPS:
@@ -98,6 +103,7 @@ def denoise(data):
                     res[i] = (1-lamb) * res[L_index-1] + lamb * res[R_index+1]
             else:
                 res[L_index:R_index+1, :] = -1000
+            res[L_index:R_index+1, :] = -1000
         
             L_index = R_index
         L_index += 1
