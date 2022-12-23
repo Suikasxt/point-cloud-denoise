@@ -1,5 +1,6 @@
 import math
 import torch
+import time
 import numpy as np
 import argparse
 import faiss
@@ -27,39 +28,25 @@ def config():
 cfg = config()
 
 def denoise(data):
-    point_set = faiss.IndexFlatL2(3)
-    position = data[:, :3]
-    position_norm = position / (np.linalg.norm(position, axis=1, keepdims=True) + EPS)
-    point_set.add(position_norm)
-    res = np.copy(data)
-    '''dist = []
-    for point in res:
-        D, I = point_set.search(np.array([point[:3]]), 10)
-        delta = np.abs(res[I[0], :3] - point[:3])
-        entropy = np.sum(np.min(delta, axis=1) / (np.linalg.norm(delta, axis=1) + EPS))
-        #dist.append(np.mean(D[0][1:10]) / (np.linalg.norm(point[:3])+EPS))
-        dist.append(entropy)
-    
-    rank = np.argsort(dist)
-    noise_point_rate = 1 - 2000/(2000 + cfg.R)
-    print('noise_point_rate', noise_point_rate)
-    noise_point_num = int(data.shape[0] * noise_point_rate)
-    for i in rank[:-noise_point_num]:
-        #res[i, :] = -1000
-        pass
-    
-    for i in rank[-noise_point_num:]:
-        res[i, :] = -1000
-        pass'''
-    for index in range(data.shape[0]):
+    for i in range(5):
+        point_set = faiss.IndexFlatL2(3)
+        position = data[:, :3]
+        position_norm = position / (np.linalg.norm(position, axis=1, keepdims=True) + EPS)
+        point_set.add(position_norm)
+        res = np.copy(data)
         K = 11
-        D, I = point_set.search(np.array([position_norm[index]]), K)
-        I = I[0][1:]
-        center = np.mean(position[I], axis=0)
-        min_D = np.linalg.norm(center - position[index], axis=-1)
-        max_D = np.mean(np.linalg.norm(position[I] - center, axis=-1))
-        if 2*max_D < min_D:
-            res[index] = np.mean(data[I], axis=0)
+        _, I_list = point_set.search(np.array(position_norm), K)
+        for index in range(data.shape[0]):
+            if np.linalg.norm(res[index]) < EPS:
+                continue
+            I = I_list[index]
+            R = np.linalg.norm(position[I], axis=-1)
+            center = np.mean(R[1:], axis=0)
+            delta = center - R[0]
+            inner_delta = np.mean(np.abs(R[1:] - center))
+            if 2*inner_delta < delta:
+                res[index] *= center / R[0]
+        data = res
         
     L_index = 0
     while L_index < res.shape[0]:
@@ -72,7 +59,7 @@ def denoise(data):
                 res[L_index:] = res[L_index-1]
             elif L_index == 0:
                 res[:R_index+1] = res[R_index+1]
-            elif np.linalg.norm(res[L_index-1] - res[R_index+1]) < 5:
+            elif np.linalg.norm(res[L_index-1] - res[R_index+1]) < 0:
                 for i in range(L_index, R_index+1):
                     lamb = (i - (L_index - 1)) / ((R_index + 1) - (L_index - 1))
                     res[i] = (1-lamb) * res[L_index-1] + lamb * res[R_index+1]
@@ -89,6 +76,7 @@ def denoise(data):
     return res
 
 if __name__ == '__main__':
+    time_start = time.time()
     data = np.fromfile(cfg.input,dtype=np.float32,count=-1).reshape([-1,4])
     res = denoise(data)
     
@@ -107,3 +95,4 @@ if __name__ == '__main__':
         output[res!=-1000] = 0
         fortran_data = np.asfortranarray(output, 'float32')
         fortran_data.tofile(f)
+    print(time.time() - time_start)
